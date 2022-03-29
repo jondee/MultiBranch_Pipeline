@@ -1,39 +1,69 @@
-//scripted pipeline
-node{
- def MHD = tool name: "maven3.8.4"
-    stage('1.Initiation'){
-    sh "echo Start of td deployment"
-    }
-    stage('2.CloneCode'){
-    git branch: 'stage', credentialsId: 'GitHubCredentials', url: 'https://github.com/LandmakTechnology/web-app'
-    }
-    stage('3.buildMaven'){
-    sh "${MHD}/bin/mvn package"
-    }
-    stage('4.CodeQuality'){
-    //sh "${MHD}/bin/mvn sonar:sonar"
-    }
-    stage('5.UploadArtifacts'){
-    //sh "${MHD}/bin/mvn deploy"
-    }
-    stage('6.Deploy2Stage'){
-    sshagent(['32d5fb4f-d92f-4a10-9f12-2738eab55fcc']) {
-    sh "scp -o StrictHostKeyChecking=no target/*war ec2-user@172.31.15.31:/opt/tomcat9/webapps/app"
-}
+node {
     
+    //function for maven 
+  
+/*---------------------------------------------------------------------------------------------------------------------------------------*/    
+    //stage one for git 
+    stage ('stage-1 clone_git') {
+       git branch: 'feature', credentialsId: '4b65e6f4-e888-491b-9800-abd06f32ad48', url: 'https://github.com/jondee/paypal-web-app-1.git'
+       //git 'https://github.com/jondee/paypal-web-app-1.git'
+    }   
+/*---------------------------------------------------------------------------------------------------------------------------------------*/        
+    //stage two  for maven 
+    //Maven Home in Jenkins server  /var/lib/jenkins/tools/hudson.tasks.Maven_MavenInstallation/maven3.8.2/bin
+    def mavenHome = tool name:'maven3.8.2'
+    stage ('stage-2 Maven Build') {
+           sh  " echo ${mavenHome} "
+    sh  "${mavenHome}/bin/mvn clean package"
+ 
+    }   
+    
+ /*---------------------------------------------------------------------------------------------------------------------------------------*/       
+    
+    //stage three  for code quality 
+    //Maven Home in Jenkins server  /var/lib/jenkins/tools/hudson.tasks.Maven_MavenInstallation/maven3.8.4/bin
+  
+    stage ('stage-3 Code Quality') {
+    sh  "${mavenHome}/bin/mvn clean package"
+    } 
+/*---------------------------------------------------------------------------------------------------------------------------------------*/    
+    //stage four  for Deploy Artifactory
+    //Maven Home in Jenkins server  /var/lib/jenkins/tools/hudson.tasks.Maven_MavenInstallation/maven3.8.4/bin
+  
+    stage ('stage-4 Upload Artifacts') {
+    sh  "${mavenHome}/bin/mvn clean  deploy"
+    } 
+
+/*---------------------------------------------------------------------------------------------------------------------------------------*/
+  
+    stage ('stage-5 Deploy to Tomcat') {
+    deploy adapters: [tomcat9(credentialsId: 'TomcatCred_pipeline', path: '', url: 'http://192.168.108.145:8080/')], contextPath: null, war: 'target/*war'
+    } 
+
+    stage ('stage-5b Deploy to Tomcat UAT environment  using SCP ') {
+    
+     
+   // sshagent(['AGENT1_CREDENTIALS']) {
+    // some block
+    // StrictHostKeyChecking=no is for no manual stage to ask if we need to continue or not (no prompts)
+   //  sh "scp -o StrictHostKeyChecking=no  target/*war ec2-user@192.168.108.145:/opt/tomcat9/webapps/uat.war"
+  //   sh "scp target/*war ec2-user@192.168.108.145:/opt/tomcat9/webapps/uat.war"
+    
+   // sshagent(credentials: ['AGENT1_CREDENTIALS'], ignoreMissing: true) {
+   //sh "scp target/*war ec2-user@192.168.108.145:/opt/tomcat9/webapps/uat.war"
+   //sh "scp -o StrictHostKeyChecking=no  target/*war  ec2-user@192.168.108.145:/opt/tomcat9/webapps/uat.war"
+   
+  // sshagent(['']  ignoreMissing: true) {
+   // sh "scp -o StrictHostKeyChecking=no target/*war  ec2-user@192.168.108.145:/opt/tomcat9/webapps/uat.war"
+   
+//}
+//sh 'scp -o StrictHostKeyChecking=no target/*war ec2-user@192.168.108.145:/opt/tomcat9/webapps/'
+sh 'echo Deploy to UAT'
 } 
-    }
-    stage('7.Approval'){
-    timeout(time:5, unit:'DAYS'){
- 			input message: 'Approval for production'
-    
-    }
-    stage('8.deployToProd'){
-    sshagent(['32d5fb4f-d92f-4a10-9f12-2738eab55fcc']) {
-    sh "scp -o StrictHostKeyChecking=no target/*war ec2-user@172.31.15.31:/opt/tomcat9/webapps/"
-}
-    
-    }
-}
+stage ('7 email'){
+emailext body: '''hi Guild 
 
-
+Status''', subject: 'project status', to: 'tolu2618@gmail.com'
+   
+}
+}
